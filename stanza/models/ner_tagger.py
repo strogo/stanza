@@ -88,6 +88,8 @@ def parse_args(args=None):
     parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
     parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
 
+    parser.add_argument('--distill_filenames', default=None, help='Use these models as the basis for distilling an NER model - use the logits produced by these models as part of the loss function')
+
     args = parser.parse_args(args=args)
     return args
 
@@ -105,6 +107,10 @@ def main(args=None):
         train(args)
     else:
         evaluate(args)
+
+def data_with_logit_targets(train_doc, batch_size, args, pretrain, vocab):
+    train_batch = DataLoader(train_doc, batch_size, args, pretrain, vocab=vocab, evaluation=False)
+    return train_batch
 
 def train(args):
     utils.ensure_dir(args['save_dir'])
@@ -143,7 +149,12 @@ def train(args):
     # load data
     logger.info("Loading data with batch size {}...".format(args['batch_size']))
     train_doc = Document(json.load(open(args['train_file'])))
-    train_batch = DataLoader(train_doc, args['batch_size'], args, pretrain, vocab=vocab, evaluation=False)
+    if args['distill_filenames']:
+        logger.info("Attaching logit targets to the data")
+        train_batch = data_with_logit_targets(train_doc, args['batch_size'], args, pretrain, vocab=vocab)
+    else:
+        train_batch = DataLoader(train_doc, args['batch_size'], args, pretrain, vocab=vocab, evaluation=False)
+
     vocab = train_batch.vocab
     dev_doc = Document(json.load(open(args['eval_file'])))
     dev_batch = DataLoader(dev_doc, args['batch_size'], args, pretrain, vocab=vocab, evaluation=True)
