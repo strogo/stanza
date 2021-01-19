@@ -67,6 +67,10 @@ class NERTagger(nn.Module):
         self.worddrop = WordDropout(args['word_dropout'])
         self.lockeddrop = LockedDropout(args['locked_dropout'])
 
+        # in case we are training to try to match the logits of a previous network, eg distilling
+        # this didn't work...
+        self.logit_target_crit = nn.BCEWithLogitsLoss()
+
     def init_emb(self, emb_matrix):
         if isinstance(emb_matrix, np.ndarray):
             emb_matrix = torch.from_numpy(emb_matrix)
@@ -80,7 +84,7 @@ class NERTagger(nn.Module):
         
         def pack(x):
             return pack_padded_sequence(x, sentlens, batch_first=True)
-        
+
         inputs = []
         if self.args['word_emb_dim'] > 0:
             word_emb = self.word_emb(word)
@@ -126,9 +130,16 @@ class NERTagger(nn.Module):
         lstm_outputs = self.lockeddrop(lstm_outputs)
         lstm_outputs = pack(lstm_outputs).data
         logits = pad(self.tag_clf(lstm_outputs)).contiguous()
-        if logit_targets is not None:
-            # TODO: put a loss function here
-            pass
         loss, trans = self.crit(logits, word_mask, tags)
+
+        # TODO: is there an easier & faster way to get the right sizes
+        if logit_targets is not None and logit_targets[0] is not None:
+            assert logits.shape[0] == len(logit_targets)
+            logit_loss = 0
+            for i in range(logits.shape[0]):
+                shape = logit_targets[i].shape[0]
+                single_logit = logits[i, :shape, :]
+                logit_loss = logit_loss + self.logit_target_crit(single_logit, logit_targets[i])
+            loss = loss + logit_loss * 0.0001
 
         return loss, logits, trans

@@ -78,6 +78,12 @@ class Trainer(BaseTrainer):
         self.optimizer.step()
         return loss_val
 
+    def logits(self, batch):
+        inputs, orig_idx, word_orig_idx, char_orig_idx, sentlens, wordlens, charlens, charoffsets, logit_targets = unpack_batch(batch, self.use_cuda)
+        word, word_mask, wordchars, wordchars_mask, chars, tags = inputs
+        _, logits, _ = self.model(word, word_mask, wordchars, wordchars_mask, tags, word_orig_idx, sentlens, wordlens, chars, charoffsets, charlens, char_orig_idx, logit_targets)
+        return logits.detach()
+
     def predict(self, batch, unsort=True):
         inputs, orig_idx, word_orig_idx, char_orig_idx, sentlens, wordlens, charlens, charoffsets, logit_targets = unpack_batch(batch, self.use_cuda)
         word, word_mask, wordchars, wordchars_mask, chars, tags = inputs

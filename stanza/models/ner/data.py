@@ -86,6 +86,7 @@ class DataLoader:
             for sent in processed:
                 sent.append(None)
         else:
+            assert len(processed) == len(logit_targets)
             for sent, logit in zip(processed, logit_targets):
                 sent.append(logit)
 
